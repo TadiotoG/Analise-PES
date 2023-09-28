@@ -1,0 +1,995 @@
+//Autores:
+//- Leonardo Balan
+//- David Brocardo
+
+// Sistema de Manipulação e Visualização de Grafos 
+//GrafosQ2.go
+
+
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"math"
+	"os"
+	"strconv"
+	"strings"
+)
+
+// Estrutura que representa um vértice
+type Vertice struct {
+	ID     int
+	Rotulo string
+}
+
+// Estrutura que representa uma aresta
+type Aresta struct {
+	VerticeOrigem  int
+	VerticeDestino int
+	Rotulo         string
+	Custo          int
+}
+
+// Grafo para unir os vertices e arestas
+type Grafo struct {
+	Vertices []Vertice //slice(lista)
+	Arestas  []Aresta  //slice(lista)
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para ler os vértices a partir de um arquivo
+// Cada vertice : ID Rotulo ex: 1 A
+func lerVertices(arquivo string) ([]Vertice, error) {
+	var vertices []Vertice
+
+	// Abrir o arquivo para leitura
+	file, err := os.Open(arquivo)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		values := strings.Split(line, " ")
+
+		// Cada linha deve conter dois valores (ID e rótulo)
+		if len(values) != 2 {
+			return nil, fmt.Errorf("linha inválida em %s: %s", arquivo, line)
+		}
+
+		// Converter ID para inteiro
+		id, err := strconv.Atoi(values[0])
+		if err != nil {
+			return nil, fmt.Errorf("falha ao converter ID do vértice em %s: %s", arquivo, line)
+		}
+
+		// Adicionar vértice à lista
+		vertices = append(vertices, Vertice{
+			ID:     id,
+			Rotulo: values[1],
+		})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return vertices, nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para ler as arestas a partir de um arquivo
+// Cada aresta: VerticeOrigem VerticeDestino Rotulo Custo, ex: 1 2 R 5
+func lerArestas(arquivo string) ([]Aresta, error) {
+	var arestas []Aresta
+
+	// Abrir o arquivo para leitura
+	file, err := os.Open(arquivo)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		values := strings.Split(line, " ")
+
+		// Cada linha deve conter quatro valores (vértice origem, vértice destino, rótulo e custo)
+		if len(values) != 4 {
+			return nil, fmt.Errorf("linha inválida em %s: %s", arquivo, line)
+		}
+
+		// Converter IDs dos vértices e custo para inteiros
+		verticeOrigem, err := strconv.Atoi(values[0])
+		if err != nil {
+			return nil, fmt.Errorf("falha ao converter ID do vértice de origem em %s: %s", arquivo, line)
+		}
+
+		verticeDestino, err := strconv.Atoi(values[1])
+		if err != nil {
+			return nil, fmt.Errorf("falha ao converter ID do vértice de destino em %s: %s", arquivo, line)
+		}
+
+		custo, err := strconv.Atoi(values[3])
+		if err != nil {
+			return nil, fmt.Errorf("falha ao converter custo da aresta em %s: %s", arquivo, line)
+		}
+
+		// Adicionar aresta à lista
+		arestas = append(arestas, Aresta{
+			VerticeOrigem:  verticeOrigem,
+			VerticeDestino: verticeDestino,
+			Rotulo:         values[2],
+			Custo:          custo,
+		})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return arestas, nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Lê os vértices e arestas dos arquivos e cria o Grafo
+func criarGrafo(arquivoVertices, arquivoArestas string) (*Grafo, error) {
+
+	vertices, err := lerVertices(arquivoVertices)
+	if err != nil {
+		return nil, err
+	}
+
+	arestas, err := lerArestas(arquivoArestas)
+	if err != nil {
+		return nil, err
+	}
+
+	// Retorna o grafo com os vértices e arestas lidos
+	return &Grafo{
+		Vertices: vertices,
+		Arestas:  arestas,
+	}, nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para Imprimir o Grafo
+func imprimirGrafo(grafo *Grafo) {
+	// Cria um mapa para armazenar as arestas que partem de cada vértice
+	arestasPorVertice := make(map[int][]Aresta)
+
+	// Preenche o mapa com as arestas para cada vértice
+	for _, aresta := range grafo.Arestas {
+		arestasPorVertice[aresta.VerticeOrigem] = append(arestasPorVertice[aresta.VerticeOrigem], aresta)
+	}
+
+	// Imprime as ligações de forma intuitiva
+	for _, vertice := range grafo.Vertices {
+		fmt.Printf("Vértice %d (%s) está conectado com:\n", vertice.ID, vertice.Rotulo)
+
+		arestas := arestasPorVertice[vertice.ID]
+		for _, aresta := range arestas {
+			destino := aresta.VerticeDestino
+			custo := aresta.Custo
+			rotulo := aresta.Rotulo
+			fmt.Printf("  -> Vértice %d (%s) com rótulo '%s' e custo %d\n", destino, grafo.Vertices[destino-1].Rotulo, rotulo, custo)
+		}
+
+		fmt.Println()
+	}
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para inserir um vértice
+func inserirVertice(grafo *Grafo, id int, rotulo string) error {
+	// Verifica se já existe um vértice com o mesmo ID
+	for _, v := range grafo.Vertices {
+		if v.ID == id {
+			return fmt.Errorf("já existe um vértice com o ID %d", id)
+		}
+	}
+
+	// Insere o vértice no grafo
+	vertice := Vertice{
+		ID:     id,
+		Rotulo: rotulo,
+	}
+	grafo.Vertices = append(grafo.Vertices, vertice)
+	return nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para inserir uma aresta
+func inserirAresta(grafo *Grafo, origemID, destinoID int, rotulo string, custo int) error {
+	// Verifica se os IDs dos vértices de origem e destino existem no grafo
+	origemEncontrada := false
+	destinoEncontrado := false
+	for _, v := range grafo.Vertices {
+		if v.ID == origemID {
+			origemEncontrada = true
+		}
+		if v.ID == destinoID {
+			destinoEncontrado = true
+		}
+	}
+
+	if !origemEncontrada {
+		return fmt.Errorf("vértice de origem com ID %d não encontrado no grafo", origemID)
+	}
+
+	if !destinoEncontrado {
+		return fmt.Errorf("vértice de destino com ID %d não encontrado no grafo", destinoID)
+	}
+	// Insere a aresta no grafo
+	aresta := Aresta{
+		VerticeOrigem:  origemID,
+		VerticeDestino: destinoID,
+		Rotulo:         rotulo,
+		Custo:          custo,
+	}
+	grafo.Arestas = append(grafo.Arestas, aresta)
+	return nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para remover uma aresta
+func removerAresta(grafo *Grafo, origemID, destinoID int, rotulo string) error {
+	// Encontra a posição da aresta a ser removida no slice de arestas
+	indice := -1
+	for i, a := range grafo.Arestas {
+		if a.VerticeOrigem == origemID && a.VerticeDestino == destinoID && a.Rotulo == rotulo {
+			indice = i
+			break
+		}
+	}
+
+	if indice == -1 {
+		return fmt.Errorf("aresta com vértices de origem %d e destino %d e rótulo %s não encontrada no grafo", origemID, destinoID, rotulo)
+	}
+
+	// Remove a aresta do slice de arestas
+	grafo.Arestas = append(grafo.Arestas[:indice], grafo.Arestas[indice+1:]...)
+
+	return nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para remover um vertice
+func removerVertice(grafo *Grafo, verticeID int) error {
+	indiceVertice := -1
+	for i, v := range grafo.Vertices { // percorre todos os vertices
+		if v.ID == verticeID { // Encontra o vertice desejado
+			indiceVertice = i
+			break
+		}
+	}
+
+	if indiceVertice == -1 {
+		return fmt.Errorf("vértice com ID %d não encontrado no grafo", verticeID) // se indice = -1, entao nao achou o vertice
+	}
+
+	novasArestas := []Aresta{}
+	for _, a := range grafo.Arestas { // Novas arestas depois de serem removidas pelo vertice removido
+		if a.VerticeOrigem != verticeID && a.VerticeDestino != verticeID {
+			novasArestas = append(novasArestas, a) // add novas arestas
+		}
+	}
+	grafo.Arestas = novasArestas
+
+	for i := range grafo.Arestas { // atualiza as arestas que tinha referencia no vertice removido 
+		if grafo.Arestas[i].VerticeOrigem > verticeID {
+			grafo.Arestas[i].VerticeOrigem--
+		}
+		if grafo.Arestas[i].VerticeDestino > verticeID { 
+			grafo.Arestas[i].VerticeDestino--
+		}
+	}
+
+	
+	grafo.Vertices = append(grafo.Vertices[:indiceVertice], grafo.Vertices[indiceVertice+1:]...) // vertices - verticeremovido
+
+	return nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função de Godman, para calcular o número de componentes conexos do Grafo
+func goodman(grafo *Grafo) int {
+	// Marca todos os vértices como não visitados
+	visitados := make(map[int]bool)
+	for _, v := range grafo.Vertices {
+		visitados[v.ID] = false
+	}
+
+	// Variável para contar o número de componentes conexos
+	numComponentes := 0
+
+	// Função recursiva para realizar a busca em profundidade
+	var dfs func(int)
+	dfs = func(vID int) {
+		visitados[vID] = true
+
+		// Visita todos os vértices adjacentes ainda não visitados
+		for _, a := range grafo.Arestas {
+			if a.VerticeOrigem == vID && !visitados[a.VerticeDestino] {
+				dfs(a.VerticeDestino)
+			}
+			if a.VerticeDestino == vID && !visitados[a.VerticeOrigem] {
+				dfs(a.VerticeOrigem)
+			}
+		}
+	}
+
+	// Percorre todos os vértices e realiza a busca em profundidade
+	for _, v := range grafo.Vertices {
+		if !visitados[v.ID] {
+			numComponentes++
+			dfs(v.ID)
+		}
+	}
+
+	return numComponentes
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para calcular se o grafo é euleriano ou não
+func euleriano(grafo *Grafo) bool {
+	// Verifica se o grafo é conexo
+	numComponentes := goodman(grafo)
+	if numComponentes > 1 {
+		return false
+	}
+
+	// Verifica se todos os vértices têm grau par
+	for _, v := range grafo.Vertices {
+		grau := 0
+		for _, a := range grafo.Arestas {
+			if a.VerticeOrigem == v.ID || a.VerticeDestino == v.ID {
+				grau++
+			}
+		}
+		if grau%2 != 0 {
+			return false
+		}
+	}
+
+	return true
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função auxiliar para verificar se a aresta é uma ponte
+/*func isBridge(grafo *Grafo, aresta Aresta) bool {
+	// Faz uma cópia do grafo para evitar modificações no original
+	grafoAux := copiaGrafo(grafo)
+
+	// Remove temporariamente a aresta do grafo auxiliar
+	for i, a := range grafoAux.Arestas {
+		if a == aresta {
+			grafoAux.Arestas = append(grafoAux.Arestas[:i], grafoAux.Arestas[i+1:]...)
+			break
+		}
+	}
+
+	// Realiza uma busca em profundidade a partir de um vértice arbitrário
+	// para verificar o número de componentes conexos após a remoção da aresta
+	visitados := make(map[int]bool)
+	componentesConexos := 0
+
+	var dfs func(int)
+	dfs = func(vID int) {
+		visitados[vID] = true
+		for _, a := range grafoAux.Arestas {
+			if a.VerticeOrigem == vID || a.VerticeDestino == vID {
+				var proximoID int
+				if a.VerticeOrigem == vID {
+					proximoID = a.VerticeDestino
+				} else {
+					proximoID = a.VerticeOrigem
+				}
+				if !visitados[proximoID] {
+					dfs(proximoID)
+				}
+			}
+		}
+	}
+
+	for vID := range grafoAux.Vertices {
+		if !visitados[vID] {
+			componentesConexos++
+			dfs(vID)
+		}
+	}
+
+	// Se o número de componentes conexos aumentar após a remoção da aresta,
+	// então a aresta é uma ponte.
+	return componentesConexos > 1
+}
+*/
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função que faz uma cópia do grafo para evitar modificações no original
+/*func copiaGrafo(grafo *Grafo) *Grafo {
+	novoVertices := make(map[int]Vertice, len(grafo.Vertices))
+	for id, vertice := range grafo.Vertices {
+		novoVertices[id] = vertice
+	}
+
+	novosVerticesSlice := make([]Vertice, 0, len(novoVertices))
+	for _, vertice := range novoVertices {
+		novosVerticesSlice = append(novosVerticesSlice, vertice)
+	}
+
+	novasArestas := make([]Aresta, len(grafo.Arestas))
+	copy(novasArestas, grafo.Arestas)
+
+	return &Grafo{
+		Vertices: novosVerticesSlice,
+		Arestas:  novasArestas,
+	}
+}
+*/
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função que encontra o ciclo euleriano utilizando o algoritmo de Fleury
+func fleury(grafo *Grafo, verticeID int) []int {
+	cicloEle := make(map[int]bool)
+	var trajeto []Aresta
+
+	// Função recursiva que realiza a busca em profundidade
+	var dfs func(int)
+	dfs = func(vID int) {
+		cicloEle[vID] = true
+
+		for _, a := range grafo.Arestas {
+			if a.VerticeOrigem == vID && !cicloEle[a.VerticeDestino] {
+				trajeto = append(trajeto, a)
+				dfs(a.VerticeDestino)
+			}
+			if a.VerticeDestino == vID && !cicloEle[a.VerticeOrigem] {
+				trajeto = append(trajeto, a)
+				dfs(a.VerticeOrigem)
+			}
+		}
+	}
+
+	// Inicia a busca em profundidade a partir do vértice inicial
+	dfs(verticeID)
+
+	// Imprime o trajeto encontrado
+	fmt.Println("Trajeto encontrado:")
+	for _, aresta := range trajeto {
+		fmt.Printf("(%d - %d) ", aresta.VerticeOrigem, aresta.VerticeDestino)
+	}
+	
+  return nil
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função de busca em profundidade
+func buscaEmProfundidade(grafo *Grafo, verticeID int) {
+	visitados := make(map[int]bool)
+	var trajeto []Aresta
+
+	// Função recursiva que realiza a busca em profundidade
+	var dfs func(int)
+	dfs = func(vID int) {
+		visitados[vID] = true
+
+		for _, a := range grafo.Arestas {
+			if a.VerticeOrigem == vID && !visitados[a.VerticeDestino] {
+				trajeto = append(trajeto, a)
+				dfs(a.VerticeDestino)
+			}
+			if a.VerticeDestino == vID && !visitados[a.VerticeOrigem] {
+				trajeto = append(trajeto, a)
+				dfs(a.VerticeOrigem)
+			}
+		}
+	}
+
+	// Inicia a busca em profundidade a partir do vértice inicial
+	dfs(verticeID)
+
+	// Imprime o trajeto encontrado
+	fmt.Println("Trajeto encontrado:")
+	for _, aresta := range trajeto {
+		fmt.Printf("(%d - %d) ", aresta.VerticeOrigem, aresta.VerticeDestino)
+	}
+	fmt.Println()
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função de busca em largura 
+func buscaEmLargura(grafo *Grafo, verticeID int) {
+	visitados := make(map[int]bool)
+	var trajeto []Aresta
+
+	// Fila para armazenar os vértices a serem visitados
+	fila := []int{verticeID}
+
+	// Marca o vértice inicial como visitado
+	visitados[verticeID] = true
+
+	for len(fila) > 0 {
+		vID := fila[0]
+		fila = fila[1:]
+
+		for _, a := range grafo.Arestas {
+			if a.VerticeOrigem == vID && !visitados[a.VerticeDestino] {
+				// Marca o vértice adjacente como visitado
+				visitados[a.VerticeDestino] = true
+
+				// Adiciona a aresta ao trajeto
+				trajeto = append(trajeto, a)
+
+				// Adiciona o vértice adjacente à fila para visitar seus vizinhos posteriormente
+				fila = append(fila, a.VerticeDestino)
+			}
+			if a.VerticeDestino == vID && !visitados[a.VerticeOrigem] {
+				// Marca o vértice adjacente como visitado
+				visitados[a.VerticeOrigem] = true
+
+				// Adiciona a aresta ao trajeto
+				trajeto = append(trajeto, a)
+
+				// Adiciona o vértice adjacente à fila para visitar seus vizinhos posteriormente
+				fila = append(fila, a.VerticeOrigem)
+			}
+		}
+	}
+
+	// Imprime o trajeto encontrado
+	fmt.Println("Trajeto encontrado:")
+	for _, aresta := range trajeto {
+		fmt.Printf("(%d - %d) ", aresta.VerticeOrigem, aresta.VerticeDestino)
+	}
+	fmt.Println()
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função do algoritmo de Dijkstra para encontrar o caminho de menor custo
+func dijkstra(grafo *Grafo, origemID, destinoID int) {
+	// Mapa para armazenar as distâncias mínimas do vértice de origem até cada vértice do grafo
+	distancias := make(map[int]float64)
+
+	// Inicializa todas as distâncias como infinito, exceto a distância da origem para ela mesma, que é 0
+	for id := 0; id <= len(grafo.Vertices); id++ {
+
+		distancias[id] = math.Inf(1)
+	}
+	distancias[origemID] = 0
+
+	// Mapa para armazenar o vértice anterior de cada vértice no caminho mínimo
+	anteriores := make(map[int]int)
+	for id := range grafo.Vertices {
+		anteriores[id] = 0
+	}
+	// Conjunto para armazenar os vértices já visitados
+	visitados := make(map[int]bool)
+	for id := range grafo.Vertices {
+		visitados[id] = false
+	}
+	verticesVisitados := 0
+	for verticesVisitados < len(grafo.Vertices) {
+		// Encontra o vértice com a menor distância entre os vértices não visitados
+		var verticeMinDist int
+		minDist := math.Inf(1)
+		/* for i := 0; i < len(distancias); i++ {
+		    fmt.Print("\n " , distancias[i])
+		}*/
+		for id, distancia := range distancias {
+			//
+			if !visitados[id] && distancia < minDist {
+				verticeMinDist = id
+				minDist = distancia
+			}
+		}
+
+		// Se todos os vértices já foram visitados ou a distância mínima restante é infinita, saímos do loop
+		if verticeMinDist == 0 || minDist == math.Inf(1) {
+			break
+		}
+
+		// Marca o vértice atual como visitado
+		visitados[verticeMinDist] = true
+
+		// Relaxamento das arestas do vértice selecionado
+		for _, aresta := range grafo.Arestas {
+			if aresta.VerticeOrigem == verticeMinDist {
+				novaDistancia := distancias[verticeMinDist] + float64(aresta.Custo)
+				if novaDistancia < distancias[aresta.VerticeDestino] {
+					distancias[aresta.VerticeDestino] = novaDistancia
+					anteriores[aresta.VerticeDestino] = verticeMinDist
+				}
+			}
+		}
+		// Marca o vértice atual como visitado
+		visitados[verticeMinDist] = true
+		verticesVisitados++
+	}
+
+	// Verifica se o destino é alcançável a partir da origem
+	if distancias[destinoID] == math.Inf(1) {
+		fmt.Println("Não há caminho possível entre o vértice de origem e o vértice de destino.")
+		return
+	}
+
+	// Construção da trajetória
+	trajetoria := []Aresta{}
+	destinoAtual := destinoID
+	for destinoAtual != origemID {
+		verticeAnterior := anteriores[destinoAtual]
+		for _, aresta := range grafo.Arestas {
+			if aresta.VerticeOrigem == verticeAnterior && aresta.VerticeDestino == destinoAtual {
+				trajetoria = append([]Aresta{aresta}, trajetoria...)
+				break
+			}
+		}
+		destinoAtual = verticeAnterior
+	}
+
+	// Exibe a trajetória calculada
+	fmt.Println("Trajetória de menor custo:")
+	for _, aresta := range trajetoria {
+		fmt.Printf("(%d - %d) ", aresta.VerticeOrigem, aresta.VerticeDestino)
+	}
+	fmt.Println("Custo total:", distancias[destinoID])
+}
+
+// ///////////////////////////////////////////////////////////////////////////
+// ///////////////////////////////////////////////////////////////////////////
+// Função para Salvar o Grafo atual num arquivo
+func salvarGrafoEmArquivos(grafo *Grafo, arquivoVertices, arquivoArestas string) error {
+	// Abrir os arquivos para escrita
+	fileVertices, err := os.Create(arquivoVertices)
+	if err != nil {
+		return err
+	}
+	defer fileVertices.Close()
+
+	fileArestas, err := os.Create(arquivoArestas)
+	if err != nil {
+		return err
+	}
+	defer fileArestas.Close()
+
+	// Escrever os vértices no arquivo de vértices
+	for _, v := range grafo.Vertices {
+		line := fmt.Sprintf("%d %s\n", v.ID, v.Rotulo)
+		fileVertices.WriteString(line)
+	}
+
+	// Escrever as arestas no arquivo de arestas
+	for _, a := range grafo.Arestas {
+		line := fmt.Sprintf("%d %d %s %d\n", a.VerticeOrigem, a.VerticeDestino, a.Rotulo, a.Custo)
+		fileArestas.WriteString(line)
+	}
+
+	return nil
+}
+
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+/////////////////////////// FUNÇÃO PRINCIPAL ////////////////////////////////
+func main() {
+
+	var grafo *Grafo
+	grafoCarregado := false           // Variável para indicar se o grafo foi carregado
+	idsVertices := make(map[int]bool) // Mapa para armazenar os IDs dos vértices existentes
+  
+    fmt.Println("\nOBS: Caso queira criar um grafo do 0,\n    abra 2 arquivos(de vertices e arestas) Vazio!")
+    fmt.Println()
+	for {
+		fmt.Println("========== Menu ===========")
+		fmt.Println()
+		fmt.Println("1.  Abrir Grafo de Arquivos")
+		fmt.Println("2.  Inserir Vértice")
+		fmt.Println("3.  Inserir Aresta")
+		fmt.Println("4.  Remover Aresta")
+		fmt.Println("5.  Remover Vertice")
+		fmt.Println("6.  Goodman (Nº de Componentes Conexos)")
+		fmt.Println("7.  Grafo Euleriano")
+		fmt.Println("8.  Fleury (Ciclo Euleriano)")
+		fmt.Println("9.  Busca em Profundidade")
+		fmt.Println("10. Busca em largura")
+		fmt.Println("11. Djkstra (Caminho de Custo Mínimo)")
+    fmt.Println("12. Salvar Grafo atual em Arquivos")
+    fmt.Println("13. Imprimir Grafo")
+    fmt.Println("14. Sair")
+    
+		fmt.Println()
+		fmt.Println("===========================")
+		fmt.Print("Escolha uma opção: ")
+
+		var opcao int //leitura da opcao escolhida
+		fmt.Scanln(&opcao)
+
+		switch opcao {
+		case 1:
+			// Opção para abrir o grafo de arquivos
+			if !grafoCarregado { // Verifica se o grafo ainda não foi carregado
+				fmt.Println("Digite o nome do arquivo de vértices:")
+				var arquivoVertices string
+				fmt.Scanln(&arquivoVertices)
+
+				fmt.Println("Digite o nome do arquivo de arestas:")
+				var arquivoArestas string
+				fmt.Scanln(&arquivoArestas)
+
+				novoGrafo, err := criarGrafo(arquivoVertices, arquivoArestas)
+				if err != nil {
+					fmt.Println("Erro ao criar o grafo:", err)
+				} else {
+					grafo = novoGrafo
+					grafoCarregado = true // Marca o grafo como carregado
+
+					// Preenche o mapa com os IDs dos vértices já existentes
+					for _, v := range grafo.Vertices {
+						idsVertices[v.ID] = true
+					}
+					fmt.Println()
+					fmt.Println("Grafo carregado com sucesso!")
+					fmt.Println()
+					fmt.Println()
+					imprimirGrafo(grafo) // Imprime o grafo após ser carregado
+				}
+			} else {
+				fmt.Println("O grafo já foi carregado!\n\nCaso queira abrir outros arquivos,\n saia do programa e execute novamente!")
+			}
+
+		case 2:
+			// Opção para inserir um vértice no grafo
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				fmt.Println("Inserir Vertice")
+				fmt.Println("Digite o ID do vértice:")
+				var id int
+				fmt.Scanln(&id)
+
+				// Verifica se já existe um vértice com o mesmo ID antes de inseri-lo
+				if _, existe := idsVertices[id]; existe {
+					fmt.Println("Já existe um vértice com o ID", id)
+				} else {
+					fmt.Println("Digite o rótulo do vértice:")
+					scanner := bufio.NewScanner(os.Stdin)
+					scanner.Scan()
+					rotulo := scanner.Text()
+
+					err := inserirVertice(grafo, id, rotulo)
+					if err != nil {
+						fmt.Println("Erro ao inserir o vértice:", err)
+					} else {
+						// Atualiza o mapa com o novo ID de vértice inserido
+						idsVertices[id] = true
+						fmt.Println()
+						fmt.Println("Vértice inserido com sucesso!")
+						fmt.Println()
+						imprimirGrafo(grafo) // Imprime o grafo após inserção do vértice
+					}
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+
+		case 3:
+			// Opção para inserir uma aresta no grafo
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				fmt.Println("Digite o ID do vértice de origem:")
+				var origemID int
+				fmt.Scanln(&origemID)
+
+				fmt.Println("Digite o ID do vértice de destino:")
+				var destinoID int
+				fmt.Scanln(&destinoID)
+
+				fmt.Println("Digite o rótulo da aresta:")
+				scanner := bufio.NewScanner(os.Stdin)
+				scanner.Scan()
+				rotulo := scanner.Text()
+
+				fmt.Println("Digite o custo da aresta:")
+				var custo int
+				fmt.Scanln(&custo)
+
+				err := inserirAresta(grafo, origemID, destinoID, rotulo, custo)
+				if err != nil {
+					fmt.Println("Erro ao inserir a aresta:", err)
+				} else {
+					fmt.Println()
+					fmt.Println("Aresta inserida com sucesso!")
+					fmt.Println()
+					imprimirGrafo(grafo) // Imprime o grafo após inserção da aresta
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+		case 4:
+			// Opção para remover uma aresta do grafo
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				fmt.Println("Digite o ID do vértice de origem:")
+				var origemID int
+				fmt.Scanln(&origemID)
+
+				fmt.Println("Digite o ID do vértice de destino:")
+				var destinoID int
+				fmt.Scanln(&destinoID)
+
+				fmt.Println("Digite o rótulo da aresta:")
+				scanner := bufio.NewScanner(os.Stdin)
+				scanner.Scan()
+				rotulo := scanner.Text()
+
+				err := removerAresta(grafo, origemID, destinoID, rotulo)
+				if err != nil {
+					fmt.Println("Erro ao remover a aresta:", err)
+				} else {
+					fmt.Println()
+					fmt.Println("Aresta removida com sucesso!")
+					fmt.Println()
+					imprimirGrafo(grafo) // Imprime o grafo após remoção da aresta
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+		case 5:
+			// Opção para remover um vértice do grafo
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				fmt.Println("Digite o ID do vértice a ser removido:")
+				var verticeID int
+				fmt.Scanln(&verticeID)
+
+				err := removerVertice(grafo, verticeID)
+				if err != nil {
+					fmt.Println("Erro ao remover o vértice:", err)
+				} else {
+					fmt.Println()
+					fmt.Println("Vértice removido com sucesso!")
+					fmt.Println()
+					imprimirGrafo(grafo) // Imprime o grafo após remoção do vértice e arestas conectadas
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+		case 6:
+			// Opção para calcular o número de componentes conexos (Goodman)
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				numComponentes := goodman(grafo)
+				fmt.Println()
+				fmt.Printf("Número de componentes conexos: %d\n", numComponentes)
+				fmt.Println()
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+		case 7:
+			// Opção para verificar se o grafo é Euleriano
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				if euleriano(grafo) {
+					fmt.Println()
+					fmt.Println("O grafo é Euleriano!")
+					fmt.Println()
+
+				} else {
+					fmt.Println()
+					fmt.Println("O grafo não é Euleriano!")
+					fmt.Println()
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+		case 8:
+			// Primeiro verifica se o grafo é Euleriano
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				if euleriano(grafo) {
+					fmt.Println("Digite o ID do vértice inicial para encontrar o ciclo Euleriano:")
+					var verticeID int
+					fmt.Scanln(&verticeID)
+					cicloEuleriano := fleury(grafo, verticeID)
+					if cicloEuleriano != nil {
+						fmt.Println("Ciclo Euleriano encontrado:", cicloEuleriano)
+					}
+				} else {
+					fmt.Println()
+					fmt.Println("O grafo não é Euleriano!")
+					fmt.Println()
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+    //busca em profundidade
+		case 9:
+      if grafoCarregado == true {
+        fmt.Println("Digite o ID do vértice inicial para realizar a busca em profundidade:")
+			var verticeID int
+			fmt.Scanln(&verticeID)
+			buscaEmProfundidade(grafo, verticeID)
+        }else{
+        fmt.Println("O grafo ainda não foi carregado!")
+        }
+    //busca em largura
+		case 10:
+      if grafoCarregado == true {
+        fmt.Println("Digite o ID do vértice inicial para realizar a busca em largura:")
+			var verticeID int
+			fmt.Scanln(&verticeID)
+
+			buscaEmLargura(grafo, verticeID)
+        }else{
+        fmt.Println("O grafo ainda não foi carregado!")
+        }
+    //dikstra
+		case 11:
+      if grafoCarregado == true {
+        fmt.Println("Digite o ID do vértice de origem:")
+			var origemID int
+			fmt.Scanln(&origemID)
+
+			fmt.Println("Digite o ID do vértice de destino:")
+			var destinoID int
+			fmt.Scanln(&destinoID)
+
+			dijkstra(grafo, origemID, destinoID)
+        }else{
+        fmt.Println("O grafo ainda não foi carregado!")
+        }
+			
+      
+    case 12:
+			// Opção para salvar o grafo em arquivos
+			if grafoCarregado { // Verifica se o grafo já foi carregado
+				fmt.Println()
+				fmt.Println("Digite o nome do arquivo para salvar os vértices:")
+				var arquivoVertices string
+				fmt.Scanln(&arquivoVertices)
+				fmt.Println()
+				fmt.Println("Digite o nome do arquivo para salvar as arestas:")
+				var arquivoArestas string
+				fmt.Scanln(&arquivoArestas)
+
+				err := salvarGrafoEmArquivos(grafo, arquivoVertices, arquivoArestas)
+				if err != nil {
+					fmt.Println("Erro ao salvar o grafo:", err)
+				} else {
+					fmt.Println()
+					fmt.Println("Grafo salvo com sucesso!")
+				}
+			} else {
+				fmt.Println("O grafo ainda não foi carregado!")
+			}
+
+    case 13:
+        //Imprimir Grafo
+      if grafoCarregado == true {
+      imprimirGrafo(grafo) // Imprime o grafo atual
+        }else{
+        fmt.Println("O grafo ainda não foi carregado!")
+        }
+    
+    case 14:
+			// Opção para sair do programa
+			fmt.Println("Saindo...")
+			return
+ 
+		default:
+			fmt.Println("Opção inválida! Digite novamente.")
+		}
+
+		fmt.Println() // Linha em branco para melhorar a apresentação
+	}
+
+}
